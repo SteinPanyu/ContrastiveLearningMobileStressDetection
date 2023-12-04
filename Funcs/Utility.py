@@ -14,13 +14,15 @@ from typing import Optional
 
 DEFAULT_TZ = pytz.FixedOffset(540)  # GMT+09:00; Asia/Seoul
 
-PATH_DATA = "/var/nfs_share/D#1"
+#Change paths according to your system
+
+PATH_DATA = r"E:\K-EmoPhone-uploaded" 
 PATH_ESM = os.path.join(PATH_DATA, 'EsmResponse.csv')
 PATH_PARTICIPANT = os.path.join(PATH_DATA, 'UserInfo.csv')
 PATH_SENSOR = os.path.join(PATH_DATA, 'Sensor')
-PATH_RESULTS = '/var/nfs_share/ContrastiveLearningMobileStressDetection/Results'
+PATH_RESULTS = './Results' 
 
-PATH_INTERMEDIATE = '/var/nfs_share/ContrastiveLearningMobileStressDetection/Intermediate'
+PATH_INTERMEDIATE = './Intermediate'
 RANDOM_STATE =42
 
 
@@ -50,7 +52,7 @@ def dump(obj, path: str):
         
     
 def log(msg: any):
-    print('[{}] {}'.format(datetime.now().strftime('%y-%m-%d %H:%M:%S'), msg))
+    print(f"[{datetime.now().strftime('%y-%m-%d %H:%M:%S')}] {msg}")
 
 
 def summary(x):
