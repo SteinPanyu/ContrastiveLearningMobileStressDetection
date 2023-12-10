@@ -27,15 +27,15 @@ RANDOM_STATE =42
 #LABEL_THRESHOLD = 87  # D#1: 31, D#2: 31, D#3: 108, D#4: 87
 seed= RANDOM_STATE
 DATA_TYPES = {
-    'Acceleration': 'ACC',
-    'AmbientLight': 'AML',
-    'Calorie': 'CAL',
-    'Distance': 'DST',
-    'EDA': 'EDA',
+    #'Acceleration': 'ACC',
+    #'AmbientLight': 'AML',
+    #'Calorie': 'CAL',
+    #'Distance': 'DST',
+    #'EDA': 'EDA',
     'HR': 'HRT',
     'RRI': 'RRI',
-    'SkinTemperature': 'SKT',
-    'StepCount': 'STP'
+    #'SkinTemperature': 'SKT',
+    #'StepCount': 'STP'
 }
 
 
