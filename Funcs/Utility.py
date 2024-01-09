@@ -27,15 +27,15 @@ RANDOM_STATE =42
 #LABEL_THRESHOLD = 87  # D#1: 31, D#2: 31, D#3: 108, D#4: 87
 seed= RANDOM_STATE
 DATA_TYPES = {
-    #'Acceleration': 'ACC',
-    #'AmbientLight': 'AML',
-    #'Calorie': 'CAL',
-    #'Distance': 'DST',
-    #'EDA': 'EDA',
-    'HR': 'HRT',
+    # 'Acceleration': 'ACC',
+    # 'AmbientLight': 'AML',
+    # 'Calorie': 'CAL',
+    # 'Distance': 'DST',
+    'EDA': 'EDA',
+    # 'HR': 'HRT',
     'RRI': 'RRI',
-    #'SkinTemperature': 'SKT',
-    #'StepCount': 'STP'
+    # 'SkinTemperature': 'SKT',
+    # 'StepCount': 'STP'
 }
 
 
@@ -128,103 +128,3 @@ def on_ray(*args, **kwargs):
         yield None
     finally:
         ray.shutdown()
-       
-        
-transform = {
-    'GAME': 'ENTER',
-    'GAME_TRIVIA': 'ENTER',
-    'GAME_CASINO': 'ENTER',
-    'GAME-ACTION': 'ENTER',
-    'GAME_SPORTS': 'ENTER',
-    'GAME_PUZZLE': 'ENTER',
-    'GAME_SIMULATION': 'ENTER',
-    'GAME_STRATEGY': 'ENTER',
-    'GAME_ROLE_PLAYING': 'ENTER',
-    'GAME_ACTION': 'ENTER',
-    'GAME_ARCADE': 'ENTER',
-    'GAME_RACING': 'ENTER',
-    'GAME_CASUAL': 'ENTER',
-    'GAME_MUSIC': 'ENTER',
-    'GAME_CARD': 'ENTER',
-    'GAME_ADVENTURE': 'ENTER',
-    'GAME_BOARD': 'ENTER',
-    'GAME_EDUCATIONAL': 'ENTER',
-    'GAME_RACING': 'ENTER',
-    'PHOTOGRAPHY': 'ENTER',
-    'ENTERTAINMENT': 'ENTER',
-    'SPORTS': 'ENTER',
-    'MUSIC_AND_AUDIO': 'ENTER',
-    'COMICS': 'ENTER',
-    'VIDEO_PLAYERS_AND_EDITORS': 'ENTER',
-    'VIDEO_PLAYERS': 'ENTER',
-    'ART_AND_DESIGN': 'ENTER',
-    'TRAVEL_AND_LOCAL': 'INFO',
-    'FOOD_AND_DRINK': 'INFO',
-    'NEWS_AND_MAGAZINES': 'INFO',
-    'MAPS_AND_NAVIGATION': 'INFO',
-    'WEATHER': 'INFO',
-    'HOUSE_AND_HOME': 'INFO',
-    'BOOKS_AND_REFERENCE': 'INFO',
-    'SHOPPING': 'INFO',
-    'LIBRARIES_AND_DEMO': 'INFO',
-    'BEAUTY': 'INFO',
-    'AUTO_AND_VEHICLES': 'INFO',
-    'LIFESTYLE': 'INFO',
-    'PERSONALIZATION': 'SYSTEM',
-    'TOOLS': 'SYSTEM',
-    'COMMUNICATION': 'SOCIAL',
-    'SOCIAL': 'SOCIAL',
-    'DATING': 'SOCIAL',
-    'PARENTING':'SOCIAL',
-    'FINANCE': 'WORK',
-    'BUSINESS': 'WORK',
-    'PRODUCTIVITY': 'WORK',
-    'EDUCATION': 'WORK',
-    'HEALTH_AND_FITNESS': 'HEALTH',
-    'MEDICAL': 'HEALTH',
-    'SYSTEM': 'SYSTEM',
-    'MISC': 'SYSTEM', # ABC logger
-     None: 'UNKNOWN',
-    'UNKNOWN':'UNKNOWN'
-}
-
-
-param = {
-    "predictor": 'cpu_predictor',
-    "early_stopping_rounds": 200,
-    "reg_alpha": 0,
-    "colsample_bytree": 1,
-    "colsample_bylevel": 1,
-    "scale_pos_weight": 1,
-    "learning_rate": 0.3,
-#     "nthread": 10,
-#     "nthread": 1,
-    "min_child_weight": 1,
-#     "n_estimators": 1000, #In current version, it is replaced by num_boost_round
-    "subsample": 1,
-    "reg_lambda": 1.72,
-#     "reg_lambda": 1,
-    "reg_alpha":0,
-    "seed": seed,
-    "objective": 'binary:logistic',
-    "max_depth": 6,
-    "gamma": 0,
-    'eval_metric': 'auc',
-    'verbosity': 0,
-#     'tree_method': 'exact
-    'tree_method': 'gpu_hist',
-#     'tree_method': 'hist',
-#     'debug': 0,
-#     'use_task_gain_self': 0,
-#     'when_task_split': 1,
-#     'how_task_split': 0,
-#     'min_task_gain': 0.0,
-#     'task_gain_margin': 0.0,
-#     'max_neg_sample_ratio': 0.4,
-#     'which_task_value': 2,
-#     'baseline_alpha': 1.0,
-#     'baseline_lambda': 1.0,
-#     'tasks_list_': (0, 1),
-#     'task_num_for_init_vec': 3,
-#     'task_num_for_OLF': 2,
-}

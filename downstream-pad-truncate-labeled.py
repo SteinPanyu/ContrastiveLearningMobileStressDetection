@@ -1,11 +1,17 @@
 from pathlib import Path
 import pandas as pd
 
+# RESAMPLE_S = 1.0
+# sequence_length = 1
+# LENGTH = int( sequence_length * 60 / RESAMPLE_S )
+
+LENGTH = 60
+
 def filter_missing_sequences(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     common_timestamps = set.intersection(*[set(df['timestamp'].unique().tolist()) for df in dfs])
     return [df.loc[df['timestamp'].isin(common_timestamps)] for df in dfs]
 
-def pad_all_sensors(sensors : list[pd.DataFrame], desired_length=60) -> list[pd.DataFrame]:
+def pad_all_sensors(sensors : list[pd.DataFrame], desired_length=LENGTH) -> list[pd.DataFrame]:
 
     def pad_and_truncate_dataframe_sequences(sequences: pd.DataFrame,  desired_length=desired_length) -> pd.DataFrame:
         
@@ -29,11 +35,11 @@ def pad_all_sensors(sensors : list[pd.DataFrame], desired_length=60) -> list[pd.
         
     return [pad_and_truncate_dataframe_sequences(sensor) for sensor in sensors]
 
-subjects = [f'P{i:02}' for i in range(1,81) if i not in (22,27,59,65)]
-unlabeled_paths = dict([(subject, list(Path('Intermediate/proc/').glob(f'{subject}*_labeled.csv'))) for subject in subjects])
-for particpant, paths in unlabeled_paths.items():
+subjects = set(p.stem[:3] for p in Path('Intermediate/proc_updated').iterdir())
+labeled_paths = dict([(subject, list(Path('Intermediate/proc_updated/').glob(f'{subject}*_labeled.csv'))) for subject in subjects])
+for particpant, paths in labeled_paths.items():
     sensors = [pd.read_csv(p, usecols=lambda c: c != 'pcode') for p in paths]
     sensors = filter_missing_sequences(sensors)
     sensors = pad_all_sensors(sensors)
-    pd.concat(sensors, axis=1).to_csv(Path(f'Intermediate/proc/labeled_joined/{particpant}_labeled.csv'))
+    pd.concat(sensors, axis=1).to_csv(Path(f'Intermediate/labeled_joined/{particpant}_labeled.csv'))
     print(f"Finished writing labeled sequences for participant {particpant}")

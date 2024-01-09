@@ -12,8 +12,7 @@ def pad_all_sensors(sensors : list[pd.DataFrame], desired_length=60) -> list[pd.
         def pad_and_truncate_individual_sequence(sequence: pd.DataFrame, desired_length=desired_length) -> pd.DataFrame:      
             current_length = len(sequence)
             
-            if current_length==desired_length:
-                return sequence
+            # Ignore shorter sequences
             
             if current_length < desired_length:
                 last_value = sequence.iloc[-1]
@@ -29,11 +28,11 @@ def pad_all_sensors(sensors : list[pd.DataFrame], desired_length=60) -> list[pd.
         
     return [pad_and_truncate_dataframe_sequences(sensor) for sensor in sensors]
 
-subjects = [f'P{i:02}' for i in range(1,81) if i not in (22,27,59,65)]
-unlabeled_paths = dict([(subject, list(Path('Intermediate/proc/').glob(f'{subject}*unlabeled.csv'))) for subject in subjects])
+subjects = set(p.stem[:3] for p in Path('Intermediate/proc_updated').iterdir())
+unlabeled_paths = dict([(subject, list(Path('Intermediate/proc_updated/').glob(f'{subject}*unlabeled.csv'))) for subject in subjects])
 for particpant, paths in unlabeled_paths.items():
     sensors = [pd.read_csv(p, usecols=lambda c: c not in ('label', 'pcode')) for p in paths]
     sensors = filter_missing_sequences(sensors)
     sensors = pad_all_sensors(sensors)
-    pd.concat(sensors, axis=1).to_csv(Path(f'Intermediate/proc/unlabeled_joined/{particpant}_unlabeled.csv'))
+    pd.concat(sensors, axis=1).to_csv(Path(f'Intermediate/unlabeled_joined/{particpant}_unlabeled.csv'))
     print(f"Finished writing unlabeled sequences for participant {particpant}")

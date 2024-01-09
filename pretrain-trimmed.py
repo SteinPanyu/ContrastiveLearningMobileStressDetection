@@ -1,50 +1,125 @@
 from pathlib import Path
 import argparse
-
-
 import torch
 import torch.nn as nn
 import numpy as np
 import pandas as pd
 import time
-
+from scipy.interpolate import interp1d
+import random
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
 from torch.utils.data import Dataset, DataLoader
 
 class UnimodalDataset(Dataset):
-    def __init__(self, path:Path, sensor_name:str):
-        self.path = path
+    def __init__(self, directory_path: Path, sensor_name: str):
         self.sensor_name = sensor_name
-        df = pd.read_csv(self.path, index_col='timestamp')
-        self.sequences = df.loc[:,sensor_name]
+        all_data = []
+
+        for file in directory_path.glob('*_unlabeled.csv'):  # Adjust the pattern if needed
+            # Extract pcode from file name (e.g., 'P01' from 'P01_unlabeled.csv')
+            pcode = file.stem.split('_')[0]
+            
+            df = pd.read_csv(file)
+            df['pcode'] = pcode  # Add pcode as a new column
+            all_data.append(df)
+
+        full_df = pd.concat(all_data, ignore_index=True)
+        # Group by pcode and timestamp
+        self.grouped_data = full_df.groupby(['pcode', 'timestamp'])[sensor_name].apply(list).reset_index(name='sequence')
+        self.sequences = self.grouped_data['sequence'].tolist()
+
+    def time_warp(self, sequence, warp_frac=0.1):
+        """Time warping augmentation"""
+        # Ensure at least two points for interpolation (start and end of the sequence)
+        min_warp_points = 2
+        num_warp_points = max(int(len(sequence) * warp_frac), min_warp_points)
+        warp_points = np.sort(np.random.choice(len(sequence), size=num_warp_points, replace=False))
+
+        # Create the interpolation function
+        interpolate = interp1d(warp_points, sequence[warp_points], bounds_error=False, fill_value="extrapolate")
+
+        # Create the range for the new sequence
+        warp_range = np.linspace(0, len(sequence) - 1, len(sequence))
+
+        # Generate the warped sequence
+        warped = interpolate(warp_range)
+
+        return warped
+
+
+    def random_subsequence(self, sequence, seq_length=None):  
+        """Extract random subsequence"""
+        if not seq_length: 
+            seq_length = int(round(random.uniform(0.5, 1) * len(sequence)))
+        start_ix = random.randint(0, len(sequence) - seq_length)
+        return sequence[start_ix:start_ix + seq_length]
+
+    def horizontal_flip(self, sequence):
+        """Flip sequence horizontally"""
+        return sequence[::-1].copy()
+
+    def permute(self, sequence):
+        """Permute elements randomly"""
+        return np.random.permutation(sequence)
+
+    def negate(self, sequence):
+        """Negate values""" 
+        return -sequence
     
-    def augment_sequence(self, original_sequence: pd.Series) -> np.ndarray:
-        # Perform agumentations
+    def jitter(self, sequence, jitter_range):
+        return np.roll(sequence, np.random.randint(-jitter_range, jitter_range))
         
-        def jitter(data, jitter_range):
-            return np.roll(data, np.random.randint(-jitter_range, jitter_range))
+    def scale(self, sequence, scale_factor=0.8):
+        return sequence * scale_factor
         
-        def scale(data, scale_factor=0.8):
-          return data * scale_factor
+    def augment_sequence(self, original_sequence):
+        aug_seq = np.array(original_sequence)  # Convert to NumPy array
+        
+        # if np.random.rand() > 0.5:
+        #     aug_seq = self.time_warp(aug_seq)
+            
+        # if np.random.rand() > 0.5:
+        #     aug_seq = self.random_subsequence(aug_seq)
 
-        jittered = jitter(original_sequence, 6)
-        scaled = scale(jittered, np.random.uniform(low=.5, high=0.95))
+        if np.random.rand() > 0.5:
+            aug_seq = self.horizontal_flip(aug_seq) 
 
-        return scaled
+        if np.random.rand() > 0.5:
+            aug_seq = self.permute(aug_seq)
+
+        if np.random.rand() > 0.5:
+            aug_seq = self.negate(aug_seq)
+        
+        if np.random.rand() > 0.5:
+            aug_seq = self.jitter(aug_seq, 6)
+
+        if np.random.rand() > 0.5:
+            aug_seq = self.scale(aug_seq, np.random.uniform(low=.5, high=0.95))
+                    
+        return aug_seq
 
 
-
-    def __getitem__(self, index) -> tuple[torch.Tensor,torch.Tensor]:
-        sequence_index = self.sequences.index.unique()
-        original_sequence = self.sequences.loc[sequence_index[index]]
+    def __getitem__(self, index) -> tuple[torch.Tensor, torch.Tensor]:
+        original_sequence = self.sequences[index]
         augmented_sequence = self.augment_sequence(original_sequence)
-        return torch.Tensor(original_sequence).view(1, -1), torch.Tensor(augmented_sequence).view(1, -1)
 
+        #Pad the sequences to a fixed length (choose an appropriate max_length)
+        max_length = 61  # Example max length
+        padded_original = np.zeros(max_length)
+        padded_augmented = np.zeros(max_length)
+
+        padded_original[:len(original_sequence)] = original_sequence[:max_length]
+        padded_augmented[:len(augmented_sequence)] = augmented_sequence[:max_length]
+
+        # return torch.Tensor(original_sequence).view(1, -1), torch.Tensor(augmented_sequence).view(1, -1)
+        return torch.Tensor(padded_original).view(1, -1), torch.Tensor(padded_augmented).view(1, -1)
 
     def __len__(self):
-        return len(self.sequences.index.unique())
+        return len(self.sequences)
     
 
-
+#Original ConvBlock
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size):
         super(ConvBlock, self).__init__()
@@ -60,6 +135,19 @@ class ConvBlock(nn.Module):
         x = self.relu2(x)
         return x
 
+# #Simplified ConvBlock
+# class ConvBlock(nn.Module):
+#     def __init__(self, in_channels, out_channels, kernel_size):
+#         super(ConvBlock, self).__init__()
+        
+#         self.conv = nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0)  
+#         self.relu = nn.ReLU()
+
+#     def forward(self, x):
+#         x = self.conv(x)  
+#         x = self.relu(x)
+#         return x
+
 class ProjectionHead(nn.Module):
     def __init__(self, in_features, out_features):
         super(ProjectionHead, self).__init__()
@@ -73,6 +161,7 @@ class ProjectionHead(nn.Module):
 
         return x
     
+ #Original Encoder   
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
@@ -98,15 +187,46 @@ class Encoder(nn.Module):
         x = self.flatten(x)
 
         return x
+    
+# #Simified Encoder
+# class Encoder(nn.Module):
+#     def __init__(self):
+#         super(Encoder, self).__init__()
+#         self.conv_block1 = ConvBlock(1, 16, 5)
+#         # self.conv_block2 = ConvBlock(32, 64, 4)
+#         # self.conv_block3 = ConvBlock(64, 128, 2)
+        
+#         # self.max_pooling = nn.MaxPool1d(kernel_size=4, stride=2)
+#         self.global_max_pooling = nn.AdaptiveMaxPool1d(1)
+        
+#         self.flatten = nn.Flatten()
+
+#     def forward(self, x):
+#         x = self.conv_block1(x)
+#         # x = self.max_pooling(x)
+        
+#         # x = self.conv_block2(x)
+#         # x = self.max_pooling(x)
+
+#         # x = self.conv_block3(x)
+#         x = self.global_max_pooling(x)
+        
+#         x = self.flatten(x)
+
+#         return x    
 
 class PreModel(nn.Module):
     def __init__(self, latent_size):
         super(PreModel, self).__init__()
 
         self.encoder = Encoder()
+        #Original Projection Head
+        # self.projection = ProjectionHead(128, latent_size)
+
         self.projection = ProjectionHead(128, latent_size)
     
     def forward(self, x):
+        print(x.shape)
         x = self.encoder(x)
         x = self.projection(x)
 
@@ -336,32 +456,87 @@ criterion = SimCLR_Loss(batch_size = batch_size, temperature = 0.5)
 
 
 def save_model(model, sensor_name):
-    out = Path(f'pretrained_models/{sensor_name}.pt')
+    out = Path(f'new_pretrained_models/{sensor_name}.pt')
 
     torch.save(model.state_dict(), out)
 
-def train_participant(participant_dataloader: DataLoader, sensor_name: str):
+# def train_participant(participant_dataloader: DataLoader, sensor_name: str):
 
     
+#     epochs = 10
+#     tr_loss = []
+
+#     for epoch in range(epochs):
+            
+#         print(f"Epoch [{epoch}/{epochs}]\t")
+#         stime = time.time()
+
+#         model.train()
+#         tr_loss_epoch = 0
+        
+#         for step, (x_i, x_j) in enumerate(participant_dataloader):
+#             if x_i.size(0) != batch_size:
+#                 break
+#             optimizer.zero_grad()
+#             x_i = x_i.cuda()
+#             x_j = x_j.cuda()
+
+#             # positive pair, with encoding
+#             z_i = model(x_i)
+#             z_j = model(x_j)
+
+#             loss = criterion(z_i, z_j)
+#             loss.backward()
+
+#             optimizer.step()
+            
+#             loss_item = loss.item()
+#             if step % 2 == 0:
+#                 print(f"Step [{step}/{len(participant_dataloader)}]\t Loss: {round(loss_item, 5)}")
+
+#             tr_loss_epoch += loss_item
+
+        
+#         mainscheduler.step()
+
+        
+#         time_taken = (time.time()-stime)/60
+#         print(f"Epoch [{epoch}/{epochs}]\t Time Taken: {time_taken} minutes \t Loss: {tr_loss_epoch}")
+
+#     save_model(model, sensor_name)
+
+
+
+# parser = argparse.ArgumentParser()
+# parser.add_argument("--sensor_name", type=str, required=True)
+# args = parser.parse_args()
+
+
+# sensor_name = args.sensor_name
+# for participant in Path('Intermediate/proc/unlabeled_joined/unlabeled_updated').glob('*unlabeled*'):
+#     participant_dataset = UnimodalDataset(participant, sensor_name)
+#     participant_dataloader = DataLoader(participant_dataset, batch_size=batch_size, shuffle=False)
+#     train_participant(participant_dataloader, sensor_name)
+
+
+def train_model(dataloader: DataLoader):
     epochs = 10
     tr_loss = []
 
     for epoch in range(epochs):
-            
-        print(f"Epoch [{epoch}/{epochs}]\t")
+        print(f"Epoch [{epoch}/{epochs}]")
         stime = time.time()
 
         model.train()
         tr_loss_epoch = 0
         
-        for step, (x_i, x_j) in enumerate(participant_dataloader):
+        for step, (x_i, x_j) in enumerate(dataloader):
             if x_i.size(0) != batch_size:
-                break
+                continue  # Continue instead of breaking to handle the last smaller batch
             optimizer.zero_grad()
             x_i = x_i.cuda()
             x_j = x_j.cuda()
 
-            # positive pair, with encoding
             z_i = model(x_i)
             z_j = model(x_j)
 
@@ -372,30 +547,57 @@ def train_participant(participant_dataloader: DataLoader, sensor_name: str):
             
             loss_item = loss.item()
             if step % 2 == 0:
-                print(f"Step [{step}/{len(participant_dataloader)}]\t Loss: {round(loss_item, 5)}")
+                print(f"Step [{step}/{len(dataloader)}]\t Loss: {round(loss_item, 5)}")
 
             tr_loss_epoch += loss_item
 
-        
         mainscheduler.step()
-
-        
-        time_taken = (time.time()-stime)/60
+        time_taken = (time.time() - stime) / 60
         print(f"Epoch [{epoch}/{epochs}]\t Time Taken: {time_taken} minutes \t Loss: {tr_loss_epoch}")
 
     save_model(model, sensor_name)
 
+    # t-SNE visualization
+    model.eval()
+    features = []
+    with torch.no_grad():
+        for step, (x_i, x_j) in enumerate(dataloader):
+            if x_i.size(0) != batch_size:
+                continue
+            x_i = x_i.cuda()
+            z_i = model.encoder(x_i).cpu().numpy()  # Extract features
+            features.append(z_i)
 
+    features = np.concatenate(features, axis=0)
+
+    # Perform t-SNE
+    tsne = TSNE(n_components=2, verbose=1, perplexity=40, n_iter=300)
+    tsne_results = tsne.fit_transform(features)
+
+    # Visualization
+    plt.figure(figsize=(8, 8))
+    plt.scatter(tsne_results[:, 0], tsne_results[:, 1])
+    plt.title("t-SNE Visualization of Encoded Features")
+    plt.xlabel("t-SNE 1")
+    plt.ylabel("t-SNE 2")
+    # Save the plot as an image file
+    plt.savefig(f'Results/tsne_visualization_{sensor_name}.png')
+    # Optionally, close the plot to free up memory
+    plt.close()
+
+# Initialize Model, Optimizer, and Scheduler
+model = PreModel(latent_size=128).cuda()
+optimizer = LARS([params for params in model.parameters() if params.requires_grad], lr=0.2, weight_decay=1e-6, exclude_from_weight_decay=["bias"])
+mainscheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, 500, eta_min=0.05, last_epoch=-1, verbose=True)
+criterion = SimCLR_Loss(batch_size=batch_size, temperature=0.5)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sensor_name", type=str, required=True)
 args = parser.parse_args()
 
+# Load Data and Train
 sensor_name = args.sensor_name
-for participant in Path('Intermediate/proc/unlabeled_joined').iterdir():
-    participant_dataset = UnimodalDataset(participant, sensor_name)
-    participant_dataloader = DataLoader(participant_dataset, batch_size=batch_size, shuffle=False)
-    train_participant(participant_dataloader, sensor_name)
-
-
-
+directory_path = Path('Intermediate/unlabeled_joined')  # Replace with the actual directory path
+participant_dataset = UnimodalDataset(directory_path, sensor_name)
+participant_dataloader = DataLoader(participant_dataset, batch_size=batch_size, shuffle=True)
+train_model(participant_dataloader)
